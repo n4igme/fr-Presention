@@ -1,0 +1,172 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Sistem Absensi{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h1 class="h3">
+                    <i class="fas fa-th-large"></i> Dashboard
+                </h1>
+                <p class="text-muted">Selamat datang, {{ current_user.name }}</p>
+            </div>
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addClassModal">
+                <i class="fas fa-plus"></i> Tambah Kelas
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Statistics -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card border-left-primary">
+            <div class="card-body">
+                <div class="text-primary font-weight-bold text-uppercase mb-1">Kelas Aktif</div>
+                <div class="h3 mb-0">{{ total_classes }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-left-success">
+            <div class="card-body">
+                <div class="text-success font-weight-bold text-uppercase mb-1">Total Mahasiswa</div>
+                <div class="h3 mb-0">{{ total_students }}</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Classes -->
+<div class="row">
+    <div class="col-12">
+        <div class="card shadow-sm">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="fas fa-book"></i> Daftar Kelas</h5>
+            </div>
+            <div class="card-body">
+                {% if classes %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Kode</th>
+                                    <th>Nama Kelas</th>
+                                    <th>Mahasiswa</th>
+                                    <th>Tahun Ajaran</th>
+                                    <th>Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for class in classes %}
+                                <tr>
+                                    <td><strong>{{ class.code }}</strong></td>
+                                    <td>{{ class.name }}</td>
+                                    <td>
+                                        <span class="badge bg-info">{{ class.students_count }}</span>
+                                    </td>
+                                    <td>{{ class.academic_year }}</td>
+                                    <td>
+                                        <a href="{{ url_for('lecturer.class_detail', class_id=class.id) }}"
+                                           class="btn btn-sm btn-info">
+                                            <i class="fas fa-eye"></i> Lihat
+                                        </a>
+                                        <a href="{{ url_for('lecturer.start_attendance', class_id=class.id) }}"
+                                           class="btn btn-sm btn-success">
+                                            <i class="fas fa-camera"></i> Absensi
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i> Belum ada kelas. Silakan buat kelas baru.
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Class Modal -->
+<div class="modal fade" id="addClassModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">Tambah Kelas Baru</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="addClassForm" method="POST">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="className" class="form-label">Nama Kelas</label>
+                        <input type="text" class="form-control" id="className" name="name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="classCode" class="form-label">Kode Kelas</label>
+                        <input type="text" class="form-control" id="classCode" name="code" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="classDescription" class="form-label">Deskripsi</label>
+                        <textarea class="form-control" id="classDescription" name="description" rows="3"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label for="academicYear" class="form-label">Tahun Ajaran</label>
+                        <input type="text" class="form-control" id="academicYear" name="academic_year"
+                               placeholder="2024/2025" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="semester" class="form-label">Semester</label>
+                        <select class="form-select" id="semester" name="semester">
+                            <option value="1">1 (Ganjil)</option>
+                            <option value="2">2 (Genap)</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-primary">Simpan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+document.getElementById('addClassForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const data = {
+        name: document.getElementById('className').value,
+        code: document.getElementById('classCode').value,
+        description: document.getElementById('classDescription').value,
+        academic_year: document.getElementById('academicYear').value,
+        semester: document.getElementById('semester').value
+    };
+
+    try {
+        const response = await fetch('{{ url_for("lecturer.api_create_class") }}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+            alert('Kelas berhasil dibuat');
+            location.reload();
+        } else {
+            alert('Error: ' + result.error);
+        }
+    } catch (error) {
+        alert('Error: ' + error.message);
+    }
+});
+</script>
+{% endblock %}

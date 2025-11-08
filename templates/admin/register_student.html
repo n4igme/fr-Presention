@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Register Student - Student Attendance System</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        #videoElement {
+            width: 100%;
+            max-width: 640px;
+            height: auto;
+        }
+        .preview-container {
+            position: relative;
+            margin: 20px 0;
+        }
+        #imagePreview {
+            max-width: 100%;
+            height: auto;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="{{ url_for('dashboard') }}">Attendance System</a>
+            <div class="navbar-nav ms-auto">
+                <a class="nav-link" href="{{ url_for('logout') }}">Logout</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <div class="row">
+            <div class="col-md-12">
+                <h2>Register New Student</h2>
+                <p>Add student information and register their face for attendance</p>
+            </div>
+        </div>
+
+        <div class="row mt-4">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5>Student Information</h5>
+                    </div>
+                    <div class="card-body">
+                        <form id="studentForm">
+                            <div class="mb-3">
+                                <label for="name" class="form-label">Full Name</label>
+                                <input type="text" class="form-control" id="name" name="name" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="student_id" class="form-label">Student ID</label>
+                                <input type="text" class="form-control" id="student_id" name="student_id" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="class_id" class="form-label">Class</label>
+                                <select class="form-select" id="class_id" name="class_id" required>
+                                    <option value="">Select a class</option>
+                                    {% for class in classes %}
+                                        <option value="{{ class.id }}">{{ class.name }} ({{ class.code }})</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <button type="submit" class="btn btn-primary">Register Student</button>
+                        </form>
+                    </div>
+                </div>
+                
+                <div class="card mt-3">
+                    <div class="card-header">
+                        <h5>Register Face</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="preview-container">
+                            <video id="videoElement" width="100%" height="auto" autoplay muted playsinline></video>
+                            <img id="imagePreview" alt="Face Preview">
+                        </div>
+                        <div class="d-grid gap-2">
+                            <button id="captureBtn" class="btn btn-success" type="button">
+                                <i class="fas fa-camera"></i> Capture Face
+                            </button>
+                            <button id="registerFaceBtn" class="btn btn-primary" type="button" disabled>
+                                <i class="fas fa-save"></i> Register Face to Student
+                            </button>
+                        </div>
+                        <div id="statusMessage" class="mt-2"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5>Instructions</h5>
+                    </div>
+                    <div class="card-body">
+                        <ol>
+                            <li>Enter student information in the form</li>
+                            <li>Position the student in front of the camera</li>
+                            <li>Click "Capture Face" to take a photo</li>
+                            <li>Verify the captured image is clear and shows only one face</li>
+                            <li>Select the student from the dropdown and click "Register Face to Student"</li>
+                        </ol>
+                        <p class="text-warning">
+                            <i class="fas fa-exclamation-triangle"></i> 
+                            Make sure the student is clearly visible and well-lit for accurate face recognition.
+                        </p>
+                    </div>
+                </div>
+                
+                <div class="card mt-3">
+                    <div class="card-header">
+                        <h5>Recently Registered Students</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="recentStudents">
+                            <p class="text-muted">Register a student to see them here</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let capturedImage = null;
+        let capturedStudentId = null;
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            const videoElement = document.getElementById('videoElement');
+            const captureBtn = document.getElementById('captureBtn');
+            const registerFaceBtn = document.getElementById('registerFaceBtn');
+            const imagePreview = document.getElementById('imagePreview');
+            const studentForm = document.getElementById('studentForm');
+            const statusMessage = document.getElementById('statusMessage');
+            
+            // Initialize webcam
+            initWebcam();
+            
+            // Handle form submission
+            studentForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                const formData = new FormData(studentForm);
+                
+                fetch('/register_student', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        statusMessage.innerHTML = '<div class="alert alert-success">Student registered successfully!</div>';
+                        document.getElementById('name').value = '';
+                        document.getElementById('student_id').value = '';
+                        
+                        // Update recent students list
+                        updateRecentStudents();
+                    } else {
+                        statusMessage.innerHTML = '<div class="alert alert-danger">Error: ' + data.error + '</div>';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    statusMessage.innerHTML = '<div class="alert alert-danger">Error registering student</div>';
+                });
+            });
+            
+            // Capture image from webcam
+            captureBtn.addEventListener('click', captureImage);
+            
+            // Register captured face to student
+            registerFaceBtn.addEventListener('click', registerFaceToStudent);
+        });
+        
+        function initWebcam() {
+            const videoElement = document.getElementById('videoElement');
+            
+            // Get access to the camera
+            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                navigator.mediaDevices.getUserMedia({ video: true })
+                    .then(function(stream) {
+                        videoElement.srcObject = stream;
+                    })
+                    .catch(function(err) {
+                        console.error("Error accessing webcam: ", err);
+                        alert("Could not access the webcam. Please ensure you've granted permission and that a camera is connected.");
+                    });
+            }
+        }
+        
+        function captureImage() {
+            const videoElement = document.getElementById('videoElement');
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            // Set canvas dimensions to match video
+            canvas.width = videoElement.videoWidth;
+            canvas.height = videoElement.videoHeight;
+            
+            // Draw current video frame to canvas
+            ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+            
+            // Convert to image data
+            capturedImage = canvas.toDataURL('image/jpeg', 0.8);
+            
+            // Show preview
+            const imagePreview = document.getElementById('imagePreview');
+            imagePreview.src = capturedImage;
+            imagePreview.style.display = 'block';
+            
+            // Hide video during preview
+            videoElement.style.display = 'none';
+            
+            // Enable register button
+            document.getElementById('registerFaceBtn').disabled = false;
+            
+            // Show status
+            document.getElementById('statusMessage').innerHTML = '<div class="alert alert-info">Image captured. Select a student and register face.</div>';
+        }
+        
+        function registerFaceToStudent() {
+            if (!capturedImage) {
+                document.getElementById('statusMessage').innerHTML = '<div class="alert alert-danger">Please capture an image first</div>';
+                return;
+            }
+            
+            // Get selected student from form
+            const studentId = document.getElementById('student_id').value;
+            if (!studentId) {
+                document.getElementById('statusMessage').innerHTML = '<div class="alert alert-danger">Please enter a student ID</div>';
+                return;
+            }
+            
+            // Convert data URL to blob
+            fetch(capturedImage)
+                .then(res => res.blob())
+                .then(blob => {
+                    const formData = new FormData();
+                    formData.append('image', blob, 'face_image.jpg');
+                    formData.append('student_id', studentId);
+                    
+                    // Send to backend for face encoding
+                    fetch('/register_face', {
+                        method: 'POST',
+                        body: formData
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            document.getElementById('statusMessage').innerHTML = '<div class="alert alert-success">Face registered successfully for student ' + studentId + '!</div>';
+                            
+                            // Reset preview
+                            document.getElementById('imagePreview').style.display = 'none';
+                            document.getElementById('videoElement').style.display = 'block';
+                            document.getElementById('registerFaceBtn').disabled = true;
+                            capturedImage = null;
+                        } else {
+                            document.getElementById('statusMessage').innerHTML = '<div class="alert alert-danger">Error: ' + data.error + '</div>';
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        document.getElementById('statusMessage').innerHTML = '<div class="alert alert-danger">Error registering face</div>';
+                    });
+                });
+        }
+        
+        function updateRecentStudents() {
+            // In a real app, this would fetch recent students from the backend
+            // For now, we'll just show a message
+            document.getElementById('recentStudents').innerHTML = '<p class="text-muted">Student added to system</p>';
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: attendance_system
+    ports:
+      - "8000:5000"
+    volumes:
+      - ./uploads:/app/uploads
+      - ./logs:/app/logs
+      - ./attendance_system.db:/app/attendance_system.db
+    environment:
+      - FLASK_APP=app.py
+      - FLASK_ENV=production
+      - FLASK_DEBUG=False
+      - SECRET_KEY=${SECRET_KEY:-your-secret-key-change-in-production}
+      - DATABASE_URL=sqlite:///attendance_system.db
+      - FACE_RECOGNITION_TOLERANCE=0.6
+      - MIN_CONFIDENCE_SCORE=0.4
+    env_file:
+      - .env
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/auth/login"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - attendance_network
+    # Uncomment lines below untuk localhost development
+    # environment untuk development:
+    #  - FLASK_ENV=development
+    #  - FLASK_DEBUG=True
+
+networks:
+  attendance_network:
+    driver: bridge
+
+volumes:
+  uploads:
+  logs:

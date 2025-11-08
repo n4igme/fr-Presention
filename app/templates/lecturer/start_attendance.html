@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+
+{% block title %}Mulai Sesi Absensi - {{ class_obj.name }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card shadow-sm">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-plus"></i> Mulai Sesi Absensi Baru
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-4">
+                    <h6>Kelas: <strong>{{ class_obj.name }}</strong></h6>
+                    <p class="text-muted mb-0">{{ class_obj.code }}</p>
+                </div>
+
+                <form method="POST">
+                    <div class="mb-3">
+                        <label for="sessionName" class="form-label">Nama Sesi</label>
+                        <input type="text" class="form-control" id="sessionName" name="session_name"
+                               placeholder="e.g., Pertemuan 1, Quiz 1" required>
+                        <small class="form-text text-muted">Berikan nama untuk mengidentifikasi sesi ini</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="notes" class="form-label">Catatan (Opsional)</label>
+                        <textarea class="form-control" id="notes" name="notes" rows="3"
+                                  placeholder="Catatan tambahan untuk sesi ini..."></textarea>
+                    </div>
+
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i>
+                        <strong>Informasi:</strong> Setelah membuat sesi, Anda akan dialihkan ke halaman pengambilan absensi
+                        dengan webcam. Pastikan webcam laptop Anda berfungsi dengan baik.
+                    </div>
+
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-success btn-lg">
+                            <i class="fas fa-play"></i> Mulai Sesi Absensi
+                        </button>
+                        <a href="{{ url_for('lecturer.class_detail', class_id=class_obj.id) }}"
+                           class="btn btn-secondary">
+                            <i class="fas fa-arrow-left"></i> Kembali
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Tips -->
+        <div class="card mt-3">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="fas fa-lightbulb"></i> Tips Penggunaan</h6>
+            </div>
+            <div class="card-body">
+                <ul class="mb-0">
+                    <li>Pastikan pencahayaan di ruangan cukup terang</li>
+                    <li>Mahasiswa harus menghadap ke arah kamera dengan jelas</li>
+                    <li>Hindari cahaya yang silau langsung ke wajah</li>
+                    <li>Jika wajah tidak terdeteksi, gunakan fitur manual entry</li>
+                    <li>Sesi dapat ditutup kapan saja melalui tombol "Akhiri Sesi"</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

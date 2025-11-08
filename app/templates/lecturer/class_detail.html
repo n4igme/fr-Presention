@@ -1,0 +1,234 @@
+{% extends "base.html" %}
+
+{% block title %}{{ class_obj.name }} - Detail Kelas{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h2 class="h4">{{ class_obj.name }}</h2>
+                <p class="text-muted">{{ class_obj.code }} | {{ class_obj.academic_year }} - Semester {{ class_obj.semester }}</p>
+            </div>
+            <div>
+                <a href="{{ url_for('lecturer.start_attendance', class_id=class_obj.id) }}"
+                   class="btn btn-success">
+                    <i class="fas fa-camera"></i> Mulai Absensi
+                </a>
+                <a href="{{ url_for('lecturer.student_management', class_id=class_obj.id) }}"
+                   class="btn btn-info">
+                    <i class="fas fa-users"></i> Kelola Mahasiswa
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tabs -->
+<ul class="nav nav-tabs" role="tablist">
+    <li class="nav-item">
+        <a class="nav-link active" data-bs-toggle="tab" href="#tabStudents">
+            <i class="fas fa-users"></i> Mahasiswa ({{ students|length }})
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link" data-bs-toggle="tab" href="#tabSessions">
+            <i class="fas fa-history"></i> Riwayat Sesi
+        </a>
+    </li>
+</ul>
+
+<div class="tab-content mt-3">
+    <!-- Students Tab -->
+    <div id="tabStudents" class="tab-pane fade show active">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Daftar Mahasiswa</h5>
+            </div>
+            <div class="card-body">
+                {% if students %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>NIM</th>
+                                    <th>Nama</th>
+                                    <th>Email</th>
+                                    <th>Status Face</th>
+                                    <th>Terdaftar Sejak</th>
+                                    <th>Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for student in students %}
+                                <tr>
+                                    <td>{{ student.student_id }}</td>
+                                    <td>{{ student.name }}</td>
+                                    <td>{{ student.email or '-' }}</td>
+                                    <td>
+                                        {% if student.face_encoding_json %}
+                                            <span class="badge bg-success">
+                                                <i class="fas fa-check"></i> Terdaftar
+                                            </span>
+                                        {% else %}
+                                            <span class="badge bg-warning">
+                                                <i class="fas fa-clock"></i> Menunggu
+                                            </span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ student.registration_date.strftime('%d-%m-%Y') if student.registration_date else '-' }}</td>
+                                    <td>
+                                        <button class="btn btn-sm btn-primary" onclick="showUploadPhoto({{ student.id }})">
+                                            <i class="fas fa-camera"></i> Upload Foto
+                                        </button>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i> Belum ada mahasiswa di kelas ini.
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Sessions Tab -->
+    <div id="tabSessions" class="tab-pane fade">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Riwayat Sesi Absensi</h5>
+            </div>
+            <div class="card-body">
+                {% if sessions %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Nama Sesi</th>
+                                    <th>Waktu Mulai</th>
+                                    <th>Waktu Selesai</th>
+                                    <th>Hadir</th>
+                                    <th>Status</th>
+                                    <th>Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for session in sessions %}
+                                <tr>
+                                    <td>{{ session.session_name }}</td>
+                                    <td>{{ session.start_time.strftime('%d-%m-%Y %H:%M') }}</td>
+                                    <td>{{ session.end_time.strftime('%d-%m-%Y %H:%M') if session.end_time else '-' }}</td>
+                                    <td>
+                                        <span class="badge bg-info">{{ session.summary.unique_students }}</span>
+                                    </td>
+                                    <td>
+                                        {% if session.is_active %}
+                                            <span class="badge bg-warning">Aktif</span>
+                                        {% else %}
+                                            <span class="badge bg-success">Selesai</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <a href="{{ url_for('lecturer.attendance_detail', class_id=class_obj.id, session_id=session.id) }}"
+                                           class="btn btn-sm btn-info">
+                                            <i class="fas fa-eye"></i> Lihat
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i> Belum ada sesi absensi.
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Upload Photo Modal -->
+<div class="modal fade" id="uploadPhotoModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Upload Foto Wajah Mahasiswa</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="uploadPhotoForm" enctype="multipart/form-data">
+                <div class="modal-body">
+                    <input type="hidden" id="studentIdInput">
+                    <div class="mb-3">
+                        <label for="photoFile" class="form-label">Pilih Foto</label>
+                        <input type="file" class="form-control" id="photoFile" name="photo" accept="image/*" required>
+                        <small class="form-text text-muted">JPG, PNG (Max 5MB)</small>
+                    </div>
+                    <div id="preview" style="display: none; text-align: center; margin-top: 15px;">
+                        <img id="previewImage" src="" style="max-width: 100%; max-height: 300px; border-radius: 5px;">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-primary">Upload</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+function showUploadPhoto(studentId) {
+    document.getElementById('studentIdInput').value = studentId;
+    document.getElementById('photoFile').value = '';
+    document.getElementById('preview').style.display = 'none';
+    new bootstrap.Modal(document.getElementById('uploadPhotoModal')).show();
+}
+
+document.getElementById('photoFile').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            document.getElementById('previewImage').src = event.target.result;
+            document.getElementById('preview').style.display = 'block';
+        };
+        reader.readAsDataURL(file);
+    }
+});
+
+document.getElementById('uploadPhotoForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const studentId = document.getElementById('studentIdInput').value;
+    const fileInput = document.getElementById('photoFile');
+    const file = fileInput.files[0];
+
+    const formData = new FormData();
+    formData.append('photo', file);
+
+    try {
+        const response = await fetch(`{{ url_for('lecturer.api_register_student_face', student_id=0) }}`.replace('0', studentId), {
+            method: 'POST',
+            body: formData
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+            alert('Foto berhasil diupload dan face encoding berhasil disimpan');
+            location.reload();
+        } else {
+            alert('Error: ' + result.error);
+        }
+    } catch (error) {
+        alert('Error: ' + error.message);
+    }
+});
+</script>
+{% endblock %}

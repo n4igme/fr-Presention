@@ -1,0 +1,436 @@
+{% extends "base.html" %}
+
+{% block title %}Pengambilan Absensi - {{ session.session_name }}{% endblock %}
+
+{% block extra_css %}
+<link href="{{ url_for('static', filename='css/face_capture.css') }}" rel="stylesheet">
+<style>
+    #video-container {
+        position: relative;
+        max-width: 100%;
+        background: #000;
+        border-radius: 10px;
+        overflow: hidden;
+    }
+
+    #video {
+        width: 100%;
+        height: auto;
+        display: block;
+    }
+
+    #face-detection {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+    }
+
+    .detection-box {
+        position: absolute;
+        border: 2px solid #00ff00;
+        box-shadow: 0 0 10px rgba(0, 255, 0, 0.5);
+    }
+
+    .stats-panel {
+        background: rgba(0, 0, 0, 0.7);
+        color: white;
+        padding: 15px;
+        border-radius: 5px;
+        font-size: 14px;
+        position: absolute;
+        bottom: 10px;
+        right: 10px;
+    }
+
+    .attendance-list {
+        max-height: 500px;
+        overflow-y: auto;
+    }
+
+    .student-item {
+        padding: 10px;
+        border-bottom: 1px solid #ddd;
+        animation: slideIn 0.3s ease;
+    }
+
+    @keyframes slideIn {
+        from {
+            opacity: 0;
+            transform: translateX(-20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateX(0);
+        }
+    }
+
+    .session-info {
+        background: #f8f9fa;
+        padding: 15px;
+        border-radius: 5px;
+        margin-bottom: 20px;
+    }
+
+    .btn-session-control {
+        padding: 10px 20px;
+        font-weight: bold;
+        border-radius: 5px;
+    }
+
+    .status-badge {
+        font-weight: bold;
+        padding: 5px 10px;
+        border-radius: 20px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row mb-3">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h2 class="h4">
+                    <i class="fas fa-camera"></i> Pengambilan Absensi
+                </h2>
+                <p class="text-muted">{{ class_obj.name }} ({{ class_obj.code }})</p>
+            </div>
+            <div>
+                {% if session.is_active %}
+                    <span class="status-badge bg-success text-white">
+                        <i class="fas fa-circle"></i> Sesi Aktif
+                    </span>
+                {% else %}
+                    <span class="status-badge bg-danger text-white">
+                        <i class="fas fa-circle"></i> Sesi Ditutup
+                    </span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Video Area -->
+    <div class="col-lg-8">
+        <div class="card shadow-sm mb-3">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="fas fa-video"></i> Webcam Face Detection</h5>
+            </div>
+            <div class="card-body p-0">
+                <div id="video-container">
+                    <video id="video" playsinline></video>
+                    <canvas id="face-detection" style="display: none;"></canvas>
+                    <div class="stats-panel">
+                        <div><strong>Detected:</strong> <span id="face-count">0</span></div>
+                        <div><strong>Recognized:</strong> <span id="recognized-count">0</span></div>
+                        <div><strong>FPS:</strong> <span id="fps">0</span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Controls -->
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-12">
+                        {% if session.is_active %}
+                            <button id="endSessionBtn" class="btn btn-danger btn-session-control w-100">
+                                <i class="fas fa-stop"></i> Akhiri Sesi Absensi
+                            </button>
+                        {% else %}
+                            <button class="btn btn-secondary btn-session-control w-100" disabled>
+                                <i class="fas fa-check"></i> Sesi Telah Ditutup
+                            </button>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="row mt-2">
+                    <div class="col-6">
+                        <button id="downloadReportBtn" class="btn btn-info btn-session-control w-100">
+                            <i class="fas fa-download"></i> Download CSV
+                        </button>
+                    </div>
+                    <div class="col-6">
+                        <a href="{{ url_for('lecturer.class_detail', class_id=class_obj.id) }}"
+                           class="btn btn-secondary btn-session-control w-100">
+                            <i class="fas fa-arrow-left"></i> Kembali
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Attendance List -->
+    <div class="col-lg-4">
+        <div class="card shadow-sm" style="height: 100%;">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-check-circle"></i> Kehadiran
+                    <span class="badge bg-light text-dark float-end" id="attendance-badge">0</span>
+                </h5>
+            </div>
+            <div class="card-body attendance-list" id="attendanceList">
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle"></i> Menunggu deteksi wajah...
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Manual Entry Modal -->
+<div class="modal fade" id="manualEntryModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Input Absensi Manual</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="manualEntryForm">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="studentSelect" class="form-label">Pilih Mahasiswa</label>
+                        <select class="form-select" id="studentSelect" required>
+                            <option value="">-- Pilih --</option>
+                            {% for student in students %}
+                                <option value="{{ student.id }}">{{ student.student_id }} - {{ student.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="manualNotes" class="form-label">Catatan</label>
+                        <textarea class="form-control" id="manualNotes" rows="2" placeholder="Alasan manual entry..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-primary">Catat Kehadiran</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+<script>
+const SESSION_ID = {{ session.id }};
+const CLASS_ID = {{ class_obj.id }};
+const STUDENTS = {{ students|tojson }};
+
+let attendedStudents = new Set();
+let videoElement;
+let isCapturing = false;
+let frameCount = 0;
+let lastFrameTime = Date.now();
+
+async function initWebcam() {
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+            video: {
+                width: { ideal: 1280 },
+                height: { ideal: 720 },
+                facingMode: 'user'
+            }
+        });
+
+        videoElement = document.getElementById('video');
+        videoElement.srcObject = stream;
+
+        // Load face-api models
+        const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.13/model/';
+        await Promise.all([
+            faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+            faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+            faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
+            faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL),
+            faceapi.nets.ageGenderNet.loadFromUri(MODEL_URL)
+        ]);
+
+        console.log('✓ Face API models loaded');
+        startCapture();
+    } catch (error) {
+        console.error('✗ Webcam error:', error);
+        alert('Error mengakses webcam: ' + error.message);
+    }
+}
+
+async function startCapture() {
+    isCapturing = true;
+
+    while (isCapturing) {
+        try {
+            // Capture frame
+            const canvas = document.getElementById('face-detection');
+            const displaySize = {
+                width: videoElement.width,
+                height: videoElement.height
+            };
+
+            faceapi.matchDimensions(canvas, displaySize);
+            const detections = await faceapi.detectAllFaces(
+                videoElement,
+                new faceapi.TinyFaceDetectorOptions()
+            );
+
+            // Update UI
+            document.getElementById('face-count').textContent = detections.length;
+
+            // Calculate FPS
+            frameCount++;
+            const now = Date.now();
+            if (now - lastFrameTime >= 1000) {
+                document.getElementById('fps').textContent = frameCount;
+                frameCount = 0;
+                lastFrameTime = now;
+            }
+
+            // Draw detections
+            const resizedDetections = faceapi.resizeResults(detections, displaySize);
+            const canvasCtx = canvas.getContext('2d');
+            canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
+
+            resizedDetections.forEach(detection => {
+                const box = detection.detection.box;
+                canvasCtx.strokeStyle = '#00ff00';
+                canvasCtx.lineWidth = 2;
+                canvasCtx.strokeRect(box.x, box.y, box.width, box.height);
+            });
+
+            // Send detected faces ke server
+            if (detections.length > 0) {
+                await sendFrameToServer();
+            }
+
+            // Delay untuk capture interval
+            await new Promise(resolve => setTimeout(resolve, 500));
+
+        } catch (error) {
+            console.error('Error capturing:', error);
+        }
+    }
+}
+
+async function sendFrameToServer() {
+    try {
+        const canvas = document.getElementById('face-detection');
+        const imageData = videoElement.toDataURL('image/jpeg');
+
+        const response = await fetch('{{ url_for("attendance.capture_face") }}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                session_id: SESSION_ID,
+                image_data: imageData
+            })
+        });
+
+        const result = await response.json();
+
+        if (result.matched && result.student && !attendedStudents.has(result.student.id)) {
+            attendedStudents.add(result.student.id);
+            addAttendanceRecord(result.student);
+            updateAttendanceBadge();
+        }
+    } catch (error) {
+        console.error('Error sending frame:', error);
+    }
+}
+
+function addAttendanceRecord(student) {
+    const listElement = document.getElementById('attendanceList');
+
+    // Clear empty message jika ada
+    const emptyAlert = listElement.querySelector('.alert-info');
+    if (emptyAlert) {
+        emptyAlert.remove();
+    }
+
+    const html = `
+        <div class="student-item">
+            <div class="d-flex justify-content-between">
+                <div>
+                    <strong>${student.name}</strong><br>
+                    <small class="text-muted">${student.student_id}</small>
+                </div>
+                <div class="text-success">
+                    <i class="fas fa-check"></i> ${new Date().toLocaleTimeString('id-ID')}
+                </div>
+            </div>
+        </div>
+    `;
+
+    listElement.insertAdjacentHTML('afterbegin', html);
+}
+
+function updateAttendanceBadge() {
+    document.getElementById('attendance-badge').textContent = attendedStudents.size;
+    document.getElementById('recognized-count').textContent = attendedStudents.size;
+}
+
+document.getElementById('endSessionBtn').addEventListener('click', async () => {
+    if (!confirm('Akhiri sesi absensi?')) return;
+
+    try {
+        isCapturing = false;
+        const response = await fetch(`{{ url_for('attendance.end_session', session_id=session.id) }}`, {
+            method: 'POST'
+        });
+
+        if (response.ok) {
+            alert('Sesi absensi ditutup');
+            location.reload();
+        }
+    } catch (error) {
+        alert('Error: ' + error.message);
+    }
+});
+
+document.getElementById('downloadReportBtn').addEventListener('click', () => {
+    location.href = `{{ url_for('report.download_session_csv', session_id=session.id) }}`;
+});
+
+document.getElementById('manualEntryForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const studentId = document.getElementById('studentSelect').value;
+    const notes = document.getElementById('manualNotes').value;
+
+    try {
+        const response = await fetch(`{{ url_for('attendance.manual_entry', student_id=0) }}`.replace('0', studentId), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                session_id: SESSION_ID,
+                notes: notes
+            })
+        });
+
+        if (response.ok) {
+            alert('Kehadiran manual tercatat');
+            const modal = new bootstrap.Modal(document.getElementById('manualEntryModal'));
+            modal.hide();
+        }
+    } catch (error) {
+        alert('Error: ' + error.message);
+    }
+});
+
+// Initialize
+document.addEventListener('DOMContentLoaded', () => {
+    initWebcam();
+});
+
+// Cleanup
+window.addEventListener('beforeunload', () => {
+    isCapturing = false;
+    if (videoElement && videoElement.srcObject) {
+        videoElement.srcObject.getTracks().forEach(track => track.stop());
+    }
+});
+</script>
+{% endblock %}

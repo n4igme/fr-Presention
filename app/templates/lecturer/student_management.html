@@ -1,0 +1,404 @@
+{% extends "base.html" %}
+
+{% block title %}Kelola Mahasiswa - {{ class_obj.name }}{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h2 class="h4">Kelola Mahasiswa</h2>
+                <p class="text-muted">{{ class_obj.name }} ({{ class_obj.code }})</p>
+            </div>
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addStudentModal">
+                <i class="fas fa-plus"></i> Tambah Mahasiswa
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Students List -->
+<div class="card shadow-sm">
+    <div class="card-header bg-primary text-white">
+        <h5 class="mb-0"><i class="fas fa-users"></i> Daftar Mahasiswa ({{ students|length }})</h5>
+    </div>
+    <div class="card-body">
+        {% if students %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead class="table-light">
+                        <tr>
+                            <th>NIM</th>
+                            <th>Nama</th>
+                            <th>Email</th>
+                            <th>Status Face</th>
+                            <th>Terdaftar</th>
+                            <th>Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for student in students %}
+                        <tr>
+                            <td><strong>{{ student.student_id }}</strong></td>
+                            <td>{{ student.name }}</td>
+                            <td>{{ student.email or '-' }}</td>
+                            <td>
+                                {% if student.face_encoding_json %}
+                                    <span class="badge bg-success">
+                                        <i class="fas fa-check"></i> Terdaftar
+                                    </span>
+                                {% else %}
+                                    <span class="badge bg-warning">
+                                        <i class="fas fa-clock"></i> Menunggu
+                                    </span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if student.registration_date %}
+                                    {{ student.registration_date.strftime('%d-%m-%Y %H:%M') }}
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="btn-group" role="group">
+                                    <button class="btn btn-sm btn-primary"
+                                            onclick="showUploadPhoto({{ student.id }}, '{{ student.name }}')">
+                                        <i class="fas fa-upload"></i> Upload
+                                    </button>
+                                    <button class="btn btn-sm btn-info"
+                                            onclick="showCapturePhoto({{ student.id }}, '{{ student.name }}')">
+                                        <i class="fas fa-video"></i> Capture
+                                    </button>
+                                    <button class="btn btn-sm btn-danger"
+                                            onclick="deleteStudent({{ student.id }})">
+                                        <i class="fas fa-trash"></i> Hapus
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle"></i> Belum ada mahasiswa di kelas ini. Klik tombol "Tambah Mahasiswa" untuk menambahkan.
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Add Student Modal -->
+<div class="modal fade" id="addStudentModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">Tambah Mahasiswa Baru</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="addStudentForm">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="studentId" class="form-label">NIM</label>
+                        <input type="text" class="form-control" id="studentId" name="student_id" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="studentName" class="form-label">Nama Lengkap</label>
+                        <input type="text" class="form-control" id="studentName" name="name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="studentEmail" class="form-label">Email (Opsional)</label>
+                        <input type="email" class="form-control" id="studentEmail" name="email">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-primary">Tambah Mahasiswa</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Upload Photo Modal -->
+<div class="modal fade" id="uploadPhotoModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">Upload Foto Wajah - <span id="uploadModalStudentName"></span></h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="uploadPhotoForm" enctype="multipart/form-data">
+                <input type="hidden" id="uploadStudentIdInput" name="student_id">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="photoFile" class="form-label">Pilih Foto (JPG/PNG, max 5MB)</label>
+                        <input type="file" class="form-control" id="photoFile" name="photo" accept=".jpg,.jpeg,.png" required>
+                        <small class="text-muted">Pastikan wajah terlihat jelas dan pencahayaan cukup</small>
+                    </div>
+                    <div id="photoPreview" class="mb-3">
+                        <img id="previewImage" style="max-width: 100%; max-height: 300px; display: none;" />
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-upload"></i> Upload Foto
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Capture Photo Modal -->
+<div class="modal fade" id="capturePhotoModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-info text-white">
+                <h5 class="modal-title">Capture Foto Wajah - <span id="captureModalStudentName"></span></h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="text-center mb-3">
+                    <video id="webcamVideo" width="400" height="300" style="border: 2px solid #007bff; border-radius: 8px;"></video>
+                </div>
+                <div class="text-center mb-3">
+                    <button type="button" class="btn btn-info" id="startWebcamBtn">
+                        <i class="fas fa-play"></i> Start Webcam
+                    </button>
+                    <button type="button" class="btn btn-success" id="captureBtn" style="display: none;">
+                        <i class="fas fa-camera"></i> Capture Photo
+                    </button>
+                    <button type="button" class="btn btn-secondary" id="stopWebcamBtn" style="display: none;">
+                        <i class="fas fa-stop"></i> Stop
+                    </button>
+                </div>
+                <div id="capturePreview" class="text-center">
+                    <img id="capturedImage" style="max-width: 100%; max-height: 300px; display: none; border-radius: 8px;" />
+                </div>
+                <input type="hidden" id="captureStudentIdInput" value="">
+                <input type="hidden" id="capturedImageData" value="">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                <button type="button" class="btn btn-success" id="uploadCapturedBtn" style="display: none;">
+                    <i class="fas fa-check"></i> Simpan & Upload
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+const CLASS_ID = {{ class_obj.id }};
+let currentStudentId = null;
+
+// Add student form
+document.getElementById('addStudentForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const data = {
+        student_id: document.getElementById('studentId').value,
+        name: document.getElementById('studentName').value,
+        email: document.getElementById('studentEmail').value
+    };
+
+    try {
+        const response = await fetch(`/api/student/class/${CLASS_ID}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+            alert('Mahasiswa berhasil ditambahkan');
+            location.reload();
+        } else {
+            alert('Error: ' + (result.error || 'Gagal menambahkan mahasiswa'));
+        }
+    } catch (error) {
+        alert('Error: ' + error.message);
+    }
+});
+
+// Show upload photo modal
+function showUploadPhoto(studentId, studentName) {
+    currentStudentId = studentId;
+    document.getElementById('uploadStudentIdInput').value = studentId;
+    document.getElementById('uploadModalStudentName').textContent = studentName;
+    document.getElementById('photoFile').value = ''; // Clear file input
+    document.getElementById('previewImage').style.display = 'none';
+
+    const modal = new bootstrap.Modal(document.getElementById('uploadPhotoModal'));
+    modal.show();
+}
+
+// Show capture photo modal
+function showCapturePhoto(studentId, studentName) {
+    currentStudentId = studentId;
+    document.getElementById('captureStudentIdInput').value = studentId;
+    document.getElementById('captureModalStudentName').textContent = studentName;
+    document.getElementById('capturedImage').style.display = 'none';
+    document.getElementById('uploadCapturedBtn').style.display = 'none';
+
+    // Reset webcam state
+    webcamStream = null;
+    document.getElementById('startWebcamBtn').style.display = 'inline-block';
+    document.getElementById('captureBtn').style.display = 'none';
+    document.getElementById('stopWebcamBtn').style.display = 'none';
+
+    const modal = new bootstrap.Modal(document.getElementById('capturePhotoModal'));
+    modal.show();
+}
+
+// Webcam capture variables
+let webcamStream = null;
+const video = document.getElementById('webcamVideo');
+const canvas = document.createElement('canvas');
+const ctx = canvas.getContext('2d');
+
+// Start webcam
+document.getElementById('startWebcamBtn').addEventListener('click', async () => {
+    try {
+        webcamStream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: 'user' },
+            audio: false
+        });
+        video.srcObject = webcamStream;
+        video.play();
+
+        document.getElementById('startWebcamBtn').style.display = 'none';
+        document.getElementById('captureBtn').style.display = 'inline-block';
+        document.getElementById('stopWebcamBtn').style.display = 'inline-block';
+    } catch (error) {
+        alert('Error mengakses webcam: ' + error.message);
+    }
+});
+
+// Capture photo from webcam
+document.getElementById('captureBtn').addEventListener('click', () => {
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    ctx.drawImage(video, 0, 0);
+
+    const imageData = canvas.toDataURL('image/jpeg');
+    document.getElementById('capturedImage').src = imageData;
+    document.getElementById('capturedImage').style.display = 'block';
+    document.getElementById('capturedImageData').value = imageData;
+
+    document.getElementById('startWebcamBtn').style.display = 'none';
+    document.getElementById('captureBtn').style.display = 'none';
+    document.getElementById('stopWebcamBtn').style.display = 'none';
+    document.getElementById('uploadCapturedBtn').style.display = 'inline-block';
+});
+
+// Stop webcam
+document.getElementById('stopWebcamBtn').addEventListener('click', () => {
+    if (webcamStream) {
+        webcamStream.getTracks().forEach(track => track.stop());
+        video.srcObject = null;
+        webcamStream = null;
+    }
+
+    document.getElementById('startWebcamBtn').style.display = 'inline-block';
+    document.getElementById('captureBtn').style.display = 'none';
+    document.getElementById('stopWebcamBtn').style.display = 'none';
+});
+
+// Upload captured image
+document.getElementById('uploadCapturedBtn').addEventListener('click', async () => {
+    const imageData = document.getElementById('capturedImageData').value;
+    if (!imageData) {
+        alert('Tidak ada foto yang ditangkap');
+        return;
+    }
+
+    // Convert data URL to blob
+    const blob = await (await fetch(imageData)).blob();
+    const formData = new FormData();
+    formData.append('photo', blob, 'capture.jpg');
+
+    try {
+        const response = await fetch(`/lecturer/api/student/${currentStudentId}/upload-photo`, {
+            method: 'POST',
+            body: formData
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+            alert('Foto berhasil ditangkap dan face encoding selesai!');
+            location.reload();
+        } else {
+            alert('Error: ' + (result.error || 'Gagal mengupload foto'));
+        }
+    } catch (error) {
+        alert('Error: ' + error.message);
+    }
+});
+
+// Photo preview for upload
+document.getElementById('photoFile').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            document.getElementById('previewImage').src = event.target.result;
+            document.getElementById('previewImage').style.display = 'block';
+        };
+        reader.readAsDataURL(file);
+    }
+});
+
+// Upload photo form
+document.getElementById('uploadPhotoForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const formData = new FormData();
+    const photoFile = document.getElementById('photoFile').files[0];
+    formData.append('photo', photoFile);
+
+    try {
+        const response = await fetch(`/lecturer/api/student/${currentStudentId}/upload-photo`, {
+            method: 'POST',
+            body: formData
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+            alert('Foto berhasil diupload dan face encoding selesai!');
+            location.reload();
+        } else {
+            alert('Error: ' + (result.error || 'Gagal mengupload foto'));
+        }
+    } catch (error) {
+        alert('Error: ' + error.message);
+    }
+});
+
+// Delete student
+function deleteStudent(studentId) {
+    if (!confirm('Yakin ingin menghapus mahasiswa ini?')) return;
+
+    fetch(`/lecturer/api/student/${studentId}`, {
+        method: 'DELETE'
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.success || result.message) {
+            alert('Mahasiswa berhasil dihapus');
+            location.reload();
+        } else {
+            alert('Error: ' + (result.error || 'Gagal menghapus'));
+        }
+    })
+    .catch(error => alert('Error: ' + error.message));
+}
+</script>
+
+{% endblock %}

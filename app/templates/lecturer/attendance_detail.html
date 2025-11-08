@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+
+{% block title %}Detail Kehadiran - {{ session.session_name }}{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h2 class="h4">{{ session.session_name }}</h2>
+                <p class="text-muted">{{ session.start_time }} hingga {{ session.end_time or 'Masih berlangsung' }}</p>
+            </div>
+            <div>
+                <a href="{{ url_for('report.download_session_csv', session_id=session.id) }}"
+                   class="btn btn-primary">
+                    <i class="fas fa-download"></i> Download CSV
+                </a>
+                <a href="{{ url_for('lecturer.class_detail', class_id=report.session.class_id) }}"
+                   class="btn btn-secondary">
+                    <i class="fas fa-arrow-left"></i> Kembali
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Statistics -->
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card border-left-primary">
+            <div class="card-body">
+                <div class="text-primary font-weight-bold text-uppercase mb-1">Total Mahasiswa</div>
+                <div class="h3 mb-0">{{ report.total_students }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card border-left-success">
+            <div class="card-body">
+                <div class="text-success font-weight-bold text-uppercase mb-1">Hadir</div>
+                <div class="h3 mb-0">{{ report.present_count }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card border-left-danger">
+            <div class="card-body">
+                <div class="text-danger font-weight-bold text-uppercase mb-1">Tidak Hadir</div>
+                <div class="h3 mb-0">{{ report.absent_count }}</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Attendance Details -->
+<div class="row">
+    <div class="col-12">
+        <div class="card shadow-sm">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-list"></i> Detail Kehadiran Mahasiswa
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover table-striped">
+                        <thead class="table-light">
+                            <tr>
+                                <th>No</th>
+                                <th>NIM</th>
+                                <th>Nama</th>
+                                <th>Email</th>
+                                <th>Status</th>
+                                <th>Waktu Datang</th>
+                                <th>Confidence</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for detail in report.attendance_details %}
+                            <tr>
+                                <td>{{ loop.index }}</td>
+                                <td><strong>{{ detail.student_id }}</strong></td>
+                                <td>{{ detail.name }}</td>
+                                <td>{{ detail.email or '-' }}</td>
+                                <td>
+                                    {% if detail.status == 'Hadir' %}
+                                        <span class="badge bg-success">
+                                            <i class="fas fa-check"></i> Hadir
+                                        </span>
+                                    {% else %}
+                                        <span class="badge bg-danger">
+                                            <i class="fas fa-times"></i> Tidak Hadir
+                                        </span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ detail.time_in }}</td>
+                                <td>
+                                    {% if detail.confidence != '-' %}
+                                        <span class="badge bg-info">{{ detail.confidence }}</span>
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Print Button -->
+<div class="row mt-3">
+    <div class="col-12">
+        <button class="btn btn-info" onclick="window.print()">
+            <i class="fas fa-print"></i> Cetak Laporan
+        </button>
+    </div>
+</div>
+{% endblock %}

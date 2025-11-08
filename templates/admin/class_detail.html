@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ class_info.name }} - Student Attendance System</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        #videoElement {
+            width: 100%;
+            max-width: 640px;
+            height: auto;
+        }
+        .student-card {
+            border-left: 4px solid #007bff;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="{{ url_for('dashboard') }}">Attendance System</a>
+            <div class="navbar-nav ms-auto">
+                <span class="navbar-text me-3">Class: {{ class_info.name }}</span>
+                <a class="nav-link" href="{{ url_for('logout') }}">Logout</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <div class="row">
+            <div class="col-md-12">
+                <h2>{{ class_info.name }} ({{ class_info.code }})</h2>
+                <p>Manage students and take attendance</p>
+            </div>
+        </div>
+
+        <div class="row mt-4">
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header">
+                        <h5>Attendance Session</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-start mb-3">
+                            <button id="startAttendance" class="btn btn-success me-md-2" type="button">
+                                <i class="fas fa-play"></i> Start Attendance
+                            </button>
+                            <button id="stopAttendance" class="btn btn-danger me-md-2" type="button" disabled>
+                                <i class="fas fa-stop"></i> Stop Attendance
+                            </button>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6>Webcam Feed</h6>
+                                <video id="videoElement" autoplay muted playsinline></video>
+                                <canvas id="canvas" style="display:none;"></canvas>
+                            </div>
+                            <div class="col-md-6">
+                                <h6>Detected Students</h6>
+                                <div id="detectedStudents">
+                                    <p class="text-muted">No students detected yet</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5>Class Details</h5>
+                        <a href="{{ url_for('add_student') }}" class="btn btn-success btn-sm">
+                            <i class="fas fa-plus"></i> Add Student
+                        </a>
+                    </div>
+                    <div class="card-body">
+                        <p><strong>Class Name:</strong> {{ class_info.name }}</p>
+                        <p><strong>Class Code:</strong> {{ class_info.code }}</p>
+                        <p><strong>Students:</strong> {{ students|length }}</p>
+                    </div>
+                </div>
+                
+                <div class="card mt-3">
+                    <div class="card-header">
+                        <h5>Students in Class</h5>
+                    </div>
+                    <div class="card-body">
+                        {% if students %}
+                            <ul class="list-group">
+                                {% for student in students %}
+                                    <li class="list-group-item">
+                                        <i class="fas fa-user"></i> {{ student.name }}
+                                        <span class="badge bg-secondary float-end">{{ student.student_id }}</span>
+                                    </li>
+                                {% endfor %}
+                            </ul>
+                        {% else %}
+                            <p>No students in this class yet.</p>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <div class="card mt-3">
+                    <div class="card-header">
+                        <h5>Recent Attendance Sessions</h5>
+                    </div>
+                    <div class="card-body">
+                        {% if sessions %}
+                            <ul class="list-group">
+                                {% for session in sessions[:5] %}
+                                    <li class="list-group-item">
+                                        <small>{{ session.start_time[:19].replace('T', ' ') }}</small>
+                                        <br>
+                                        <span class="badge bg-info">{{ session.attendance_count }} records</span>
+                                        {% if session.is_active %}
+                                            <span class="badge bg-warning">Active</span>
+                                        {% else %}
+                                            <a href="{{ url_for('attendance_report', session_id=session.id) }}" class="btn btn-sm btn-outline-primary">View</a>
+                                        {% endif %}
+                                    </li>
+                                {% endfor %}
+                            </ul>
+                        {% else %}
+                            <p>No attendance sessions yet.</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let currentSessionId = null;
+        let stream = null;
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            const videoElement = document.getElementById('videoElement');
+            const startBtn = document.getElementById('startAttendance');
+            const stopBtn = document.getElementById('stopAttendance');
+            
+            startBtn.addEventListener('click', startAttendance);
+            stopBtn.addEventListener('click', stopAttendance);
+            
+            // Initialize webcam
+            initWebcam();
+        });
+        
+        function initWebcam() {
+            const videoElement = document.getElementById('videoElement');
+            
+            // Get access to the camera
+            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                navigator.mediaDevices.getUserMedia({ video: true })
+                    .then(function(stream) {
+                        videoElement.srcObject = stream;
+                    })
+                    .catch(function(err) {
+                        console.error("Error accessing webcam: ", err);
+                        alert("Could not access the webcam. Please ensure you've granted permission and that a camera is connected.");
+                    });
+            }
+        }
+        
+        function startAttendance() {
+            // Start attendance session on the backend
+            fetch(`/start_attendance/{{ class_info.id }}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    currentSessionId = data.session_id;
+                    document.getElementById('startAttendance').disabled = true;
+                    document.getElementById('stopAttendance').disabled = false;
+                    
+                    // Start processing frames
+                    processVideoFrames();
+                    
+                    console.log('Attendance session started with ID:', currentSessionId);
+                } else {
+                    alert('Error starting attendance: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error starting attendance session');
+            });
+        }
+        
+        function stopAttendance() {
+            if (currentSessionId) {
+                fetch(`/end_attendance/${currentSessionId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        currentSessionId = null;
+                        document.getElementById('startAttendance').disabled = false;
+                        document.getElementById('stopAttendance').disabled = true;
+                        
+                        console.log('Attendance session ended');
+                    } else {
+                        alert('Error ending attendance: ' + data.error);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Error ending attendance session');
+                });
+            }
+        }
+        
+        function processVideoFrames() {
+            if (!currentSessionId) return;
+            
+            const videoElement = document.getElementById('videoElement');
+            const canvas = document.getElementById('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            // Set canvas dimensions to match video
+            canvas.width = videoElement.videoWidth;
+            canvas.height = videoElement.videoHeight;
+            
+            function captureAndSendFrame() {
+                if (!currentSessionId) return; // Stop if session ended
+                
+                // Draw current video frame to canvas
+                ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+                
+                // Convert canvas to blob and send to backend
+                canvas.toBlob(function(blob) {
+                    const formData = new FormData();
+                    formData.append('frame', blob, 'frame.jpg');
+                    
+                    fetch(`/api/attendance/${currentSessionId}/capture`, {
+                        method: 'POST',
+                        body: formData
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            updateDetectedStudents(data.detected_students);
+                        } else {
+                            console.error('Error processing frame:', data.error);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error sending frame:', error);
+                    });
+                }, 'image/jpeg', 0.6); // Lower quality for faster transmission
+                
+                // Continue capturing frames (about 10 FPS)
+                setTimeout(captureAndSendFrame, 100);
+            }
+            
+            captureAndSendFrame();
+        }
+        
+        function updateDetectedStudents(detectedStudents) {
+            const container = document.getElementById('detectedStudents');
+            
+            if (detectedStudents.length === 0) {
+                container.innerHTML = '<p class="text-muted">No students detected</p>';
+                return;
+            }
+            
+            let html = '<ul class="list-group">';
+            detectedStudents.forEach(student => {
+                html += `
+                    <li class="list-group-item student-card">
+                        <i class="fas fa-check-circle text-success"></i> 
+                        <strong>${student.name}</strong>
+                        <br>
+                        <small class="text-muted">${new Date(student.timestamp).toLocaleString()}</small>
+                    </li>
+                `;
+            });
+            html += '</ul>';
+            
+            container.innerHTML = html;
+        }
+    </script>
+</body>
+</html>
