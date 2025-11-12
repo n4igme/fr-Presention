@@ -158,12 +158,14 @@ def attendance_capture(session_id):
 
     # Get students di kelas
     students = Student.query.filter_by(class_id=class_obj.id, is_active=True).all()
+    # Convert to dictionary to make them JSON serializable
+    students_dict = [student.to_dict() for student in students]
 
     return render_template(
         'lecturer/attendance_capture.html',
         session=session,
         class_obj=class_obj,
-        students=students
+        students=students_dict
     )
 
 

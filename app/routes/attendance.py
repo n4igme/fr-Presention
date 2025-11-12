@@ -180,31 +180,13 @@ def capture_face():
                 'confidence': confidence
             }), 200
 
-        # Record attendance
-        try:
-            record = AttendanceService.record_attendance(
-                student_id=matched_student.id,
-                session_id=session_id,
-                confidence_score=confidence,
-                is_manual=False
-            )
+        # Check if student already recorded attendance in this session
+        existing_record = AttendanceRecord.query.filter_by(
+            student_id=matched_student.id,
+            session_id=session_id
+        ).first()
 
-            return jsonify({
-                'detected': True,
-                'matched': True,
-                'message': f'Kehadiran tercatat: {matched_student.name}',
-                'student': {
-                    'id': matched_student.id,
-                    'student_id': matched_student.student_id,
-                    'name': matched_student.name
-                },
-                'confidence': f"{confidence:.2f}",
-                'timestamp': record.timestamp.isoformat()
-            }), 200
-
-        except Exception as e:
-            # Duplicate entry - sudah tercatat
-            logger.warning(f"Duplikat attendance: {matched_student.student_id}")
+        if existing_record:
             return jsonify({
                 'detected': True,
                 'matched': True,
@@ -218,8 +200,208 @@ def capture_face():
                 'duplicate': True
             }), 200
 
+        # Record attendance
+        record = AttendanceService.record_attendance(
+            student_id=matched_student.id,
+            session_id=session_id,
+            confidence_score=confidence,
+            is_manual=False
+        )
+
+        return jsonify({
+            'detected': True,
+            'matched': True,
+            'message': f'Kehadiran tercatat: {matched_student.name}',
+            'student': {
+                'id': matched_student.id,
+                'student_id': matched_student.student_id,
+                'name': matched_student.name
+            },
+            'confidence': f"{confidence:.2f}",
+            'timestamp': record.timestamp.isoformat()
+        }), 200
+
     except Exception as e:
         logger.error(f"Error capture face: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/capture-single', methods=['POST'])
+@login_required
+def capture_single_face():
+    """
+    Simplified approach: Capture face encoding for comparison without auto-recording
+    Expects: {
+        'session_id': int,
+        'image_data': base64 encoded image
+    }
+    """
+    try:
+        data = request.get_json()
+        session_id = data.get('session_id')
+        image_data = data.get('image_data')
+
+        if not session_id or not image_data:
+            return jsonify({'error': 'Missing required fields'}), 400
+
+        # Get session
+        session = AttendanceSession.query.get_or_404(session_id)
+
+        # Verify ownership
+        if session.class_record.lecturer_id != current_user.id and not current_user.is_admin():
+            return jsonify({'error': 'Akses ditolak'}), 403
+
+        # Decode base64 image
+        try:
+            if ',' in image_data:
+                image_data = image_data.split(',')[1]
+            image_bytes = base64.b64decode(image_data)
+            image = Image.open(io.BytesIO(image_bytes))
+        except Exception as e:
+            logger.error(f"Error decode image: {str(e)}")
+            return jsonify({'error': 'Invalid image format'}), 400
+
+        # Extract face encoding dari frame
+        unknown_encoding = FaceRecognitionService.encode_face(image)
+
+        if unknown_encoding is None:
+            return jsonify({
+                'status': 'no_face',
+                'message': 'Tidak ada wajah terdeteksi'
+            }), 200
+
+        # Get all active students di kelas
+        class_id = session.class_id
+        students = Student.query.filter_by(
+            class_id=class_id,
+            is_active=True
+        ).all()
+
+        # Filter students dengan face encoding
+        known_students = []
+        for student in students:
+            encoding = student.get_face_encoding()
+            if encoding is not None:
+                known_students.append((student, encoding))
+
+        if not known_students:
+            return jsonify({
+                'status': 'no_comparison',
+                'message': 'Tidak ada mahasiswa dengan face encoding di kelas'
+            }), 200
+
+        # Compare faces
+        matched_student, confidence = FaceRecognitionService.compare_faces(
+            unknown_encoding,
+            known_students
+        )
+
+        if matched_student is None:
+            return jsonify({
+                'status': 'no_match',
+                'message': 'Wajah tidak dikenal'
+            }), 200
+
+        # Check confidence threshold
+        min_confidence = current_app.config.get('MIN_CONFIDENCE_SCORE', 0.4)
+        if confidence < min_confidence:
+            return jsonify({
+                'status': 'low_confidence',
+                'message': f'Confidence {confidence:.2f} di bawah threshold',
+                'confidence': confidence,
+                'student': {
+                    'id': matched_student.id,
+                    'student_id': matched_student.student_id,
+                    'name': matched_student.name
+                }
+            }), 200
+
+        # Check if student already recorded attendance in this session
+        existing_record = AttendanceRecord.query.filter_by(
+            student_id=matched_student.id,
+            session_id=session_id
+        ).first()
+
+        return jsonify({
+            'status': 'match',
+            'message': f'Wajah dikenali: {matched_student.name}',
+            'student': {
+                'id': matched_student.id,
+                'student_id': matched_student.student_id,
+                'name': matched_student.name
+            },
+            'confidence': f"{confidence:.2f}",
+            'already_recorded': existing_record is not None
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error capture single face: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/record-attendance', methods=['POST'])
+@login_required
+def record_attendance():
+    """
+    Record attendance for a specific student in a session (manual confirmation)
+    Expects: {
+        'session_id': int,
+        'student_id': int,
+        'confidence_score': float
+    }
+    """
+    try:
+        data = request.get_json()
+        session_id = data.get('session_id')
+        student_id = data.get('student_id')
+        confidence_score = data.get('confidence_score', 0.0)
+
+        if not session_id or not student_id:
+            return jsonify({'error': 'Missing required fields'}), 400
+
+        # Get session
+        session = AttendanceSession.query.get_or_404(session_id)
+
+        # Verify ownership
+        if session.class_record.lecturer_id != current_user.id and not current_user.is_admin():
+            return jsonify({'error': 'Akses ditolak'}), 403
+
+        # Get student
+        student = Student.query.get_or_404(student_id)
+
+        # Check if student is in the class
+        if student.class_id != session.class_id:
+            return jsonify({'error': 'Student not in this class'}), 400
+
+        # Check if already recorded attendance
+        existing_record = AttendanceRecord.query.filter_by(
+            student_id=student_id,
+            session_id=session_id
+        ).first()
+
+        if existing_record:
+            return jsonify({
+                'message': f'{student.name} sudah tercatat hadir',
+                'student': student.to_dict(),
+                'already_recorded': True
+            }), 200
+
+        # Record attendance
+        record = AttendanceService.record_attendance(
+            student_id=student_id,
+            session_id=session_id,
+            confidence_score=confidence_score,
+            is_manual=True  # This is a confirmed attendance, not auto-detected
+        )
+
+        return jsonify({
+            'message': f'Kehadiran tercatat: {student.name}',
+            'student': student.to_dict(),
+            'record': record.to_dict()
+        }), 201
+
+    except Exception as e:
+        logger.error(f"Error record attendance: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 

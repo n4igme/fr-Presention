@@ -33,19 +33,8 @@
         box-shadow: 0 0 10px rgba(0, 255, 0, 0.5);
     }
 
-    .stats-panel {
-        background: rgba(0, 0, 0, 0.7);
-        color: white;
-        padding: 15px;
-        border-radius: 5px;
-        font-size: 14px;
-        position: absolute;
-        bottom: 10px;
-        right: 10px;
-    }
-
     .attendance-list {
-        max-height: 500px;
+        max-height: 400px;
         overflow-y: auto;
     }
 
@@ -66,23 +55,72 @@
         }
     }
 
-    .session-info {
-        background: #f8f9fa;
-        padding: 15px;
-        border-radius: 5px;
-        margin-bottom: 20px;
-    }
-
-    .btn-session-control {
-        padding: 10px 20px;
-        font-weight: bold;
-        border-radius: 5px;
-    }
-
     .status-badge {
         font-weight: bold;
         padding: 5px 10px;
         border-radius: 20px;
+    }
+
+    .face-verification {
+        background: #f8f9fa;
+        border: 2px dashed #ccc;
+        border-radius: 10px;
+        padding: 20px;
+        text-align: center;
+        min-height: 150px;
+        margin-bottom: 20px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+    }
+
+    .face-verification.confirmed {
+        border: 2px solid #28a745;
+        background: #f0fff4;
+    }
+
+    .face-verification.unverified {
+        border: 2px solid #ffc107;
+        background: #fff3cd;
+    }
+
+    .face-verification.error {
+        border: 2px solid #dc3545;
+        background: #f8d7da;
+    }
+
+    .verification-steps {
+        background: white;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        padding: 15px;
+        margin-bottom: 20px;
+    }
+
+    .step {
+        padding: 10px;
+        margin: 5px 0;
+        border-radius: 5px;
+        background: #f8f9fa;
+    }
+
+    .step.completed {
+        background: #d4edda;
+        color: #155724;
+    }
+
+    .step.active {
+        background: #cce5ff;
+        color: #004085;
+        font-weight: bold;
+    }
+
+    .btn-attendance {
+        padding: 10px 20px;
+        font-weight: bold;
+        border-radius: 5px;
+        margin: 5px;
     }
 </style>
 {% endblock %}
@@ -113,50 +151,62 @@
 </div>
 
 <div class="row">
-    <!-- Video Area -->
+    <!-- Video & Controls Area -->
     <div class="col-lg-8">
         <div class="card shadow-sm mb-3">
             <div class="card-header bg-primary text-white">
-                <h5 class="mb-0"><i class="fas fa-video"></i> Webcam Face Detection</h5>
+                <h5 class="mb-0"><i class="fas fa-video"></i> Absensi Wajah Manual</h5>
             </div>
-            <div class="card-body p-0">
+            <div class="card-body">
                 <div id="video-container">
-                    <video id="video" playsinline></video>
-                    <canvas id="face-detection" style="display: none;"></canvas>
-                    <div class="stats-panel">
-                        <div><strong>Detected:</strong> <span id="face-count">0</span></div>
-                        <div><strong>Recognized:</strong> <span id="recognized-count">0</span></div>
-                        <div><strong>FPS:</strong> <span id="fps">0</span></div>
+                    <video id="video" playsinline autoplay muted width="100%"></video>
+                </div>
+                
+                <!-- Verification Box -->
+                <div id="verificationBox" class="face-verification unverified mt-3">
+                    <h5><i class="fas fa-user"></i> Tampilkan Wajah di Kamera</h5>
+                    <p class="text-muted" id="verificationStatus">Menunggu pengambilan wajah...</p>
+                </div>
+                
+                <!-- Action Buttons -->
+                <div class="row mt-3">
+                    <div class="col-md-6">
+                        <button id="captureBtn" class="btn btn-primary btn-attendance w-100">
+                            <i class="fas fa-camera"></i> Ambil Wajah
+                        </button>
+                    </div>
+                    <div class="col-md-6">
+                        <button id="confirmBtn" class="btn btn-success btn-attendance w-100" disabled>
+                            <i class="fas fa-check"></i> Konfirmasi Hadir
+                        </button>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Controls -->
+        <!-- Session Controls -->
         <div class="card shadow-sm">
             <div class="card-body">
                 <div class="row">
-                    <div class="col-12">
+                    <div class="col-12 mb-2">
                         {% if session.is_active %}
-                            <button id="endSessionBtn" class="btn btn-danger btn-session-control w-100">
+                            <button id="endSessionBtn" class="btn btn-danger btn-attendance w-100">
                                 <i class="fas fa-stop"></i> Akhiri Sesi Absensi
                             </button>
                         {% else %}
-                            <button class="btn btn-secondary btn-session-control w-100" disabled>
+                            <button class="btn btn-secondary btn-attendance w-100" disabled>
                                 <i class="fas fa-check"></i> Sesi Telah Ditutup
                             </button>
                         {% endif %}
                     </div>
-                </div>
-                <div class="row mt-2">
                     <div class="col-6">
-                        <button id="downloadReportBtn" class="btn btn-info btn-session-control w-100">
+                        <button id="downloadReportBtn" class="btn btn-info btn-attendance w-100">
                             <i class="fas fa-download"></i> Download CSV
                         </button>
                     </div>
                     <div class="col-6">
                         <a href="{{ url_for('lecturer.class_detail', class_id=class_obj.id) }}"
-                           class="btn btn-secondary btn-session-control w-100">
+                           class="btn btn-secondary btn-attendance w-100">
                             <i class="fas fa-arrow-left"></i> Kembali
                         </a>
                     </div>
@@ -167,7 +217,7 @@
 
     <!-- Attendance List -->
     <div class="col-lg-4">
-        <div class="card shadow-sm" style="height: 100%;">
+        <div class="card shadow-sm">
             <div class="card-header bg-success text-white">
                 <h5 class="mb-0">
                     <i class="fas fa-check-circle"></i> Kehadiran
@@ -176,42 +226,26 @@
             </div>
             <div class="card-body attendance-list" id="attendanceList">
                 <div class="alert alert-info">
-                    <i class="fas fa-info-circle"></i> Menunggu deteksi wajah...
+                    <i class="fas fa-info-circle"></i> Menunggu konfirmasi kehadiran...
                 </div>
             </div>
         </div>
-    </div>
-</div>
-
-<!-- Manual Entry Modal -->
-<div class="modal fade" id="manualEntryModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Input Absensi Manual</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        
+        <!-- Verification Steps -->
+        <div class="verification-steps mt-3">
+            <h6><i class="fas fa-info-circle"></i> Alur Absensi:</h6>
+            <div class="step active" id="step1">
+                1. Mahasiswa tampilkan wajah di kamera
             </div>
-            <form id="manualEntryForm">
-                <div class="modal-body">
-                    <div class="mb-3">
-                        <label for="studentSelect" class="form-label">Pilih Mahasiswa</label>
-                        <select class="form-select" id="studentSelect" required>
-                            <option value="">-- Pilih --</option>
-                            {% for student in students %}
-                                <option value="{{ student.id }}">{{ student.student_id }} - {{ student.name }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label for="manualNotes" class="form-label">Catatan</label>
-                        <textarea class="form-control" id="manualNotes" rows="2" placeholder="Alasan manual entry..."></textarea>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
-                    <button type="submit" class="btn btn-primary">Catat Kehadiran</button>
-                </div>
-            </form>
+            <div class="step" id="step2">
+                2. Klik tombol "Ambil Wajah"
+            </div>
+            <div class="step" id="step3">
+                3. Sistem verifikasi identitas
+            </div>
+            <div class="step" id="step4">
+                4. Klik "Konfirmasi Hadir"
+            </div>
         </div>
     </div>
 </div>
@@ -224,9 +258,8 @@ const STUDENTS = {{ students|tojson }};
 
 let attendedStudents = new Set();
 let videoElement;
-let isCapturing = false;
-let frameCount = 0;
-let lastFrameTime = Date.now();
+let currentMatchedStudent = null;
+let currentConfidence = 0;
 
 async function initWebcam() {
     try {
@@ -252,75 +285,27 @@ async function initWebcam() {
         ]);
 
         console.log('✓ Face API models loaded');
-        startCapture();
     } catch (error) {
         console.error('✗ Webcam error:', error);
         alert('Error mengakses webcam: ' + error.message);
     }
 }
 
-async function startCapture() {
-    isCapturing = true;
-
-    while (isCapturing) {
-        try {
-            // Capture frame
-            const canvas = document.getElementById('face-detection');
-            const displaySize = {
-                width: videoElement.width,
-                height: videoElement.height
-            };
-
-            faceapi.matchDimensions(canvas, displaySize);
-            const detections = await faceapi.detectAllFaces(
-                videoElement,
-                new faceapi.TinyFaceDetectorOptions()
-            );
-
-            // Update UI
-            document.getElementById('face-count').textContent = detections.length;
-
-            // Calculate FPS
-            frameCount++;
-            const now = Date.now();
-            if (now - lastFrameTime >= 1000) {
-                document.getElementById('fps').textContent = frameCount;
-                frameCount = 0;
-                lastFrameTime = now;
-            }
-
-            // Draw detections
-            const resizedDetections = faceapi.resizeResults(detections, displaySize);
-            const canvasCtx = canvas.getContext('2d');
-            canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
-
-            resizedDetections.forEach(detection => {
-                const box = detection.detection.box;
-                canvasCtx.strokeStyle = '#00ff00';
-                canvasCtx.lineWidth = 2;
-                canvasCtx.strokeRect(box.x, box.y, box.width, box.height);
-            });
-
-            // Send detected faces ke server
-            if (detections.length > 0) {
-                await sendFrameToServer();
-            }
-
-            // Delay untuk capture interval
-            await new Promise(resolve => setTimeout(resolve, 500));
-
-        } catch (error) {
-            console.error('Error capturing:', error);
-        }
-    }
-}
-
-async function sendFrameToServer() {
+async function captureFace() {
+    document.getElementById('verificationStatus').textContent = 'Mengambil gambar...';
+    document.getElementById('verificationBox').className = 'face-verification unverified mt-3';
+    
     try {
-        const canvas = document.getElementById('face-detection');
-        const imageData = videoElement.toDataURL('image/jpeg');
-
-        const response = await fetch('{{ url_for("attendance.capture_face") }}', {
+        // Capture current frame
+        const canvas = document.createElement('canvas');
+        canvas.width = videoElement.videoWidth;
+        canvas.height = videoElement.videoHeight;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(videoElement, 0, 0);
+        const imageData = canvas.toDataURL('image/jpeg');
+        
+        // Send to server for face recognition
+        const response = await fetch('{{ url_for("attendance.capture_single") }}', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -331,13 +316,121 @@ async function sendFrameToServer() {
 
         const result = await response.json();
 
-        if (result.matched && result.student && !attendedStudents.has(result.student.id)) {
-            attendedStudents.add(result.student.id);
-            addAttendanceRecord(result.student);
-            updateAttendanceBadge();
+        if (result.status === 'match') {
+            currentMatchedStudent = result.student;
+            currentConfidence = parseFloat(result.confidence);
+            
+            // Show success
+            document.getElementById('verificationStatus').innerHTML = `
+                <div class="text-center">
+                    <h5><i class="fas fa-check-circle text-success"></i> Wajah Dikenali!</h5>
+                    <p class="mb-0"><strong>${result.student.name}</strong></p>
+                    <p class="mb-0 text-muted">${result.student.student_id}</p>
+                    <p class="mb-0">Confidence: ${result.confidence}</p>
+                    ${result.already_recorded ? 
+                        '<span class="badge bg-warning">Sudah Absen</span>' : 
+                        '<span class="badge bg-success">Belum Absen</span>'
+                    }
+                </div>
+            `;
+            document.getElementById('verificationBox').className = 'face-verification confirmed mt-3';
+            
+            // Enable confirmation button if not already recorded
+            if (!result.already_recorded) {
+                document.getElementById('confirmBtn').disabled = false;
+            } else {
+                document.getElementById('confirmBtn').disabled = true;
+            }
+            
+            // Update step indicators
+            document.getElementById('step2').className = 'step completed';
+            document.getElementById('step3').className = 'step completed';
+            document.getElementById('step4').className = 'step active';
+        } else {
+            // Show error
+            let message = result.message || 'Wajah tidak dikenal';
+            document.getElementById('verificationStatus').innerHTML = `
+                <div class="text-center">
+                    <h5><i class="fas fa-exclamation-triangle text-danger"></i> ${message}</h5>
+                    <p class="mb-0">Coba posisi wajah lebih jelas</p>
+                </div>
+            `;
+            document.getElementById('verificationBox').className = 'face-verification error mt-3';
+            
+            document.getElementById('confirmBtn').disabled = true;
+            currentMatchedStudent = null;
+            currentConfidence = 0;
+            
+            // Reset step indicators
+            document.getElementById('step1').className = 'step active';
+            document.getElementById('step2').className = 'step';
+            document.getElementById('step3').className = 'step';
+            document.getElementById('step4').className = 'step';
         }
     } catch (error) {
-        console.error('Error sending frame:', error);
+        console.error('Error capturing face:', error);
+        document.getElementById('verificationStatus').innerHTML = `
+            <div class="text-center">
+                <h5><i class="fas fa-exclamation-triangle text-danger"></i> Error!</h5>
+                <p class="mb-0">${error.message}</p>
+            </div>
+        `;
+        document.getElementById('verificationBox').className = 'face-verification error mt-3';
+        document.getElementById('confirmBtn').disabled = true;
+    }
+}
+
+async function confirmAttendance() {
+    if (!currentMatchedStudent) {
+        alert('Tidak ada wajah yang dikenali!');
+        return;
+    }
+
+    try {
+        // Record attendance
+        const response = await fetch('{{ url_for("attendance.record_attendance") }}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                session_id: SESSION_ID,
+                student_id: currentMatchedStudent.id,
+                confidence_score: currentConfidence
+            })
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+            if (result.already_recorded) {
+                alert(result.message);
+            } else {
+                alert(result.message);
+                
+                // Add to attendance list
+                addAttendanceRecord(currentMatchedStudent);
+                updateAttendanceBadge();
+                
+                // Reset UI
+                document.getElementById('verificationStatus').textContent = 'Wajah terkonfirmasi hadir!';
+                document.getElementById('verificationBox').className = 'face-verification confirmed mt-3';
+                document.getElementById('confirmBtn').disabled = true;
+                
+                // Reset for next student
+                currentMatchedStudent = null;
+                currentConfidence = 0;
+                
+                // Reset step indicators
+                document.getElementById('step1').className = 'step active';
+                document.getElementById('step2').className = 'step';
+                document.getElementById('step3').className = 'step';
+                document.getElementById('step4').className = 'step';
+            }
+        } else {
+            alert('Error: ' + (result.error || 'Gagal mencatat kehadiran'));
+        }
+    } catch (error) {
+        console.error('Error confirming attendance:', error);
+        alert('Error: ' + error.message);
     }
 }
 
@@ -368,15 +461,20 @@ function addAttendanceRecord(student) {
 }
 
 function updateAttendanceBadge() {
-    document.getElementById('attendance-badge').textContent = attendedStudents.size;
-    document.getElementById('recognized-count').textContent = attendedStudents.size;
+    // We need to make an API call to get the actual count
+    // For now, we'll just count the list items
+    const listElement = document.getElementById('attendanceList');
+    const count = listElement.querySelectorAll('.student-item').length;
+    document.getElementById('attendance-badge').textContent = count;
 }
+
+document.getElementById('captureBtn').addEventListener('click', captureFace);
+document.getElementById('confirmBtn').addEventListener('click', confirmAttendance);
 
 document.getElementById('endSessionBtn').addEventListener('click', async () => {
     if (!confirm('Akhiri sesi absensi?')) return;
 
     try {
-        isCapturing = false;
         const response = await fetch(`{{ url_for('attendance.end_session', session_id=session.id) }}`, {
             method: 'POST'
         });
@@ -394,32 +492,6 @@ document.getElementById('downloadReportBtn').addEventListener('click', () => {
     location.href = `{{ url_for('report.download_session_csv', session_id=session.id) }}`;
 });
 
-document.getElementById('manualEntryForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
-
-    const studentId = document.getElementById('studentSelect').value;
-    const notes = document.getElementById('manualNotes').value;
-
-    try {
-        const response = await fetch(`{{ url_for('attendance.manual_entry', student_id=0) }}`.replace('0', studentId), {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                session_id: SESSION_ID,
-                notes: notes
-            })
-        });
-
-        if (response.ok) {
-            alert('Kehadiran manual tercatat');
-            const modal = new bootstrap.Modal(document.getElementById('manualEntryModal'));
-            modal.hide();
-        }
-    } catch (error) {
-        alert('Error: ' + error.message);
-    }
-});
-
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
     initWebcam();
@@ -427,7 +499,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // Cleanup
 window.addEventListener('beforeunload', () => {
-    isCapturing = false;
     if (videoElement && videoElement.srcObject) {
         videoElement.srcObject.getTracks().forEach(track => track.stop());
     }

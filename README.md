@@ -17,6 +17,7 @@ Sistem absensi real-time berbasis pengenalan wajah (Face Recognition) yang diran
 - 📊 **Laporan Kehadiran**: View dan download attendance reports dalam format CSV
 - 🔄 **Hybrid Approach**: Client-side detection (face-api.js) + Server-side verification (Python)
 - 🐳 **Docker Support**: Deployment mudah dengan Docker dan Docker Compose
+- ✅ **Proses Absensi Manual**: Pendekatan sederhana untuk absensi manual yang lebih akurat
 
 ## 🛠️ Technology Stack
 
@@ -198,6 +199,38 @@ fr-Presention/
 │
 └── logs/                               # Application logs
 ```
+
+## 🚀 Panduan Penggunaan Proses Absensi Baru
+
+### 1️⃣ Pendekatan Manual (Dianjurkan)
+Sistem kini menyediakan pendekatan absensi yang lebih sederhana dan terstruktur:
+
+1. **Login sebagai Dosen** di sistem
+2. **Pilih kelas** dan klik "Mulai Sesi Absensi"
+3. **Mahasiswa datang satu-persatu** ke depan kelas
+4. **Tampilkan wajah** di depan webcam
+5. **Klik "Ambil Wajah"** untuk verifikasi identitas
+6. **Sistem akan mengenali wajah** dan menampilkan nama mahasiswa
+7. **Klik "Konfirmasi Hadir"** untuk mencatat kehadiran
+8. **Ulangi untuk mahasiswa berikutnya**
+
+### 2️⃣ Fitur Pendekatan Manual
+- **Verifikasi Visual**: Dosen dapat memverifikasi bahwa wajah yang terdeteksi benar-benar milik mahasiswa tersebut
+- **Pengurangan Kesalahan**: Mengurangi kebingungan saat banyak wajah terdeteksi sekaligus
+- **Kontrol Lebih Baik**: Dosen memiliki kontrol penuh atas proses absensi
+- **Umpan Balik Langsung**: Status verifikasi ditampilkan dengan jelas (hijau untuk sukses, merah untuk error)
+
+### 3️⃣ Endpoint Baru
+Sistem kini memiliki dua endpoint untuk capture face:
+- `/api/attendance/capture-single` - untuk verifikasi identitas tanpa langsung mencatat kehadiran
+- `/api/attendance/record-attendance` - untuk mencatat kehadiran setelah konfirmasi manual
+- `/api/attendance/capture` - endpoint lama (masih tersedia untuk kompatibilitas)
+
+### 4️⃣ Keunggulan Pendekatan Baru
+- **Lebih Akurat**: Pengurangan kesalahan identifikasi karena verifikasi manual
+- **Lebih Transparan**: Proses terstruktur dan mudah dipahami
+- **Lebih Mudah Diverifikasi**: Dosen dapat mengonfirmasi secara visual sebelum mencatat kehadiran
+- **Kontrol Lebih Baik**: Dosen memiliki kendali penuh atas proses absensi
 
 ## 🔐 Keamanan & Privacy
 
