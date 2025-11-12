@@ -206,7 +206,7 @@ document.getElementById('addStudentForm').addEventListener('submit', async (e) =
     };
 
     try {
-        const response = await fetch(`/api/student/class/${CLASS_ID}`, {
+        const response = await fetch(`/lecturer/api/student/class/${CLASS_ID}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data)

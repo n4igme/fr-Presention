@@ -123,6 +123,56 @@ def api_create_student():
         return jsonify({'error': str(e)}), 500
 
 
+@bp.route('/api/class/<int:class_id>', methods=['POST'])
+@login_required
+def api_create_student_for_class(class_id):
+    """API untuk create student secara langsung untuk kelas tertentu (untuk frontend consistency)"""
+    if current_user.role not in ('lecturer', 'admin'):
+        return jsonify({'error': 'Akses ditolak'}), 403
+
+    data = request.get_json()
+
+    try:
+        # Validate required fields
+        required_fields = ['student_id', 'name']
+        if not all(field in data for field in required_fields):
+            return jsonify({'error': 'Field required tidak lengkap'}), 400
+
+        # Check duplicate
+        existing = Student.query.filter_by(student_id=data['student_id']).first()
+        if existing:
+            return jsonify({'error': 'NIM sudah terdaftar'}), 400
+
+        # Verify class ownership
+        class_obj = Class.query.get(class_id)
+        if not class_obj or (class_obj.lecturer_id != current_user.id and not current_user.is_admin()):
+            return jsonify({'error': 'Akses ditolak'}), 403
+
+        # Add class_id to data
+        data['class_id'] = class_id
+
+        student = Student(
+            student_id=data['student_id'],
+            name=data['name'],
+            email=data.get('email'),
+            phone=data.get('phone'),
+            class_id=class_id
+        )
+
+        db.session.add(student)
+        db.session.commit()
+
+        logger.info(f"Mahasiswa baru dibuat untuk kelas {class_id}: {student.student_id}")
+        return jsonify({
+            'message': 'Mahasiswa berhasil dibuat',
+            'student': student.to_dict()
+        }), 201
+
+    except Exception as e:
+        logger.error(f"Error create student: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
 @bp.route('/api/<int:student_id>', methods=['GET'])
 def api_get_student(student_id):
     """Get student details"""
