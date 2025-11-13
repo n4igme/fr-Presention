@@ -18,7 +18,6 @@ class Class(db.Model):
 
     # Relationships
     students = db.relationship('Student', backref='class_record', lazy='dynamic', cascade='all, delete-orphan')
-    attendance_sessions = db.relationship('AttendanceSession', backref='class_record', lazy='dynamic', cascade='all, delete-orphan')
 
     def __repr__(self):
         return f'<Class {self.code}: {self.name}>'
@@ -34,6 +33,6 @@ class Class(db.Model):
             'academic_year': self.academic_year,
             'semester': self.semester,
             'student_count': self.students.count(),
-            'created_at': self.created_at.isoformat(),
-            'updated_at': self.updated_at.isoformat()
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }

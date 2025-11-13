@@ -50,8 +50,8 @@ class User(UserMixin, db.Model):
             'name': self.name,
             'role': self.role,
             'is_active': self.is_active,
-            'created_at': self.created_at.isoformat(),
-            'updated_at': self.updated_at.isoformat()
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
 
 

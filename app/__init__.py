@@ -66,22 +66,44 @@ def create_app(config_name='development'):
 
     # Create tables
     with app.app_context():
-        db.create_all()
+        # Check if tables exist before creating by attempting to reflect the database
+        from sqlalchemy import text
+        try:
+            # Try to query the sqlite_master table to see if our tables exist
+            result = db.session.execute(text("SELECT name FROM sqlite_master WHERE type='table';"))
+            tables = [row[0] for row in result.fetchall()]
+            if 'users' not in tables:  # If main table doesn't exist, assume none exist
+                db.create_all()
+                print("✓ Tables created successfully")
+            else:
+                print(f"✓ Tables already exist: {tables}")
+        except:
+            # If we can't query sqlite_master, try creating tables but ignore errors
+            try:
+                db.create_all()
+                print("✓ Tables created successfully")
+            except:
+                print("✓ Tables already exist, skipping creation")
 
         # Create default admin user jika belum ada
-        from app.models.user import User
-        admin_user = User.query.filter_by(username='admin').first()
-        if not admin_user:
-            admin = User(
-                username='admin',
-                email='admin@attendance.local',
-                name='Administrator',
-                role='admin'
-            )
-            admin.set_password('admin123')
-            db.session.add(admin)
-            db.session.commit()
-            print("✓ Default admin user created (admin/admin123)")
+        try:
+            from app.models.user import User
+            admin_user = User.query.filter_by(username='admin').first()
+            if not admin_user:
+                admin = User(
+                    username='admin',
+                    email='admin@attendance.local',
+                    name='Administrator',
+                    role='admin'
+                )
+                admin.set_password('admin123')
+                db.session.add(admin)
+                db.session.commit()
+                print("✓ Default admin user created (admin/admin123)")
+            else:
+                print("✓ Admin user already exists")
+        except Exception as e:
+            print(f"! Error creating admin user: {str(e)}")
 
     return app
 

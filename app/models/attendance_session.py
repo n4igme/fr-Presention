@@ -18,6 +18,7 @@ class AttendanceSession(db.Model):
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relationships
+    class_record = db.relationship('Class', backref='attendance_sessions')
     attendance_records = db.relationship('AttendanceRecord', backref='session', lazy='dynamic', cascade='all, delete-orphan')
 
     def end_session(self):
@@ -50,12 +51,12 @@ class AttendanceSession(db.Model):
             'id': self.id,
             'class_id': self.class_id,
             'session_name': self.session_name,
-            'start_time': self.start_time.isoformat(),
+            'start_time': self.start_time.isoformat() if self.start_time else None,
             'end_time': self.end_time.isoformat() if self.end_time else None,
             'is_active': self.is_active,
             'created_by': self.created_by,
             'notes': self.notes,
             'summary': self.get_summary(),
-            'created_at': self.created_at.isoformat(),
-            'updated_at': self.updated_at.isoformat()
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }

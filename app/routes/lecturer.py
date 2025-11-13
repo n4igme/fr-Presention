@@ -150,16 +150,34 @@ def start_attendance(class_id):
 def attendance_capture(session_id):
     """Main attendance capture page dengan webcam"""
     session = AttendanceSession.query.get_or_404(session_id)
-    class_obj = session.class_record
+    
+    # Check bahwa session memiliki class_id yang valid
+    if not session.class_id:
+        logger.error(f"Session {session_id} tidak memiliki class_id")
+        return jsonify({'error': 'Server Error', 'message': 'Terjadi kesalahan pada server'}), 500
+    
+    # Akses class_record dan pastikan tidak None
+    try:
+        class_obj = session.class_record
+        if not class_obj:
+            logger.error(f"Class record tidak ditemukan untuk session {session_id}")
+            return jsonify({'error': 'Server Error', 'message': 'Terjadi kesalahan pada server'}), 500
+    except Exception as e:
+        logger.error(f"Error mengakses class_record untuk session {session_id}: {str(e)}")
+        return jsonify({'error': 'Server Error', 'message': 'Terjadi kesalahan pada server'}), 500
 
     if class_obj.lecturer_id != current_user.id and not current_user.is_admin():
         flash('Akses ditolak', 'error')
         return redirect(url_for('lecturer.dashboard'))
 
     # Get students di kelas
-    students = Student.query.filter_by(class_id=class_obj.id, is_active=True).all()
-    # Convert to dictionary to make them JSON serializable
-    students_dict = [student.to_dict() for student in students]
+    try:
+        students = Student.query.filter_by(class_id=class_obj.id, is_active=True).all()
+        # Convert to dictionary to make them JSON serializable
+        students_dict = [student.to_dict() for student in students]
+    except Exception as e:
+        logger.error(f"Error mengambil data students untuk class {class_obj.id}: {str(e)}")
+        return jsonify({'error': 'Server Error', 'message': 'Terjadi kesalahan pada server'}), 500
 
     return render_template(
         'lecturer/attendance_capture.html',

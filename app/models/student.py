@@ -57,8 +57,8 @@ class Student(db.Model):
             'photo_path': self.photo_path,
             'is_active': self.is_active,
             'registration_date': self.registration_date.isoformat() if self.registration_date else None,
-            'created_at': self.created_at.isoformat(),
-            'updated_at': self.updated_at.isoformat()
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
 
         if include_encoding and self.face_encoding_json:

@@ -285,17 +285,51 @@ async function initWebcam() {
         ]);
 
         console.log('✓ Face API models loaded');
+        
+        // Update status
+        document.getElementById('verificationStatus').innerHTML = `
+            <div class="text-center">
+                <h5><i class="fas fa-user text-primary"></i> Tampilkan Wajah di Kamera</h5>
+                <p class="text-muted mb-0">Pastikan wajah terlihat jelas dan pencahayaan cukup</p>
+            </div>
+        `;
     } catch (error) {
         console.error('✗ Webcam error:', error);
-        alert('Error mengakses webcam: ' + error.message);
+        document.getElementById('verificationStatus').innerHTML = `
+            <div class="text-center">
+                <h5><i class="fas fa-exclamation-triangle text-danger"></i> Gagal Mengakses Kamera</h5>
+                <p class="text-muted mb-0">Harap izinkan akses kamera dan coba lagi</p>
+                <button class="btn btn-sm btn-outline-primary mt-2" onclick="location.reload()">Muat Ulang</button>
+            </div>
+        `;
+        document.getElementById('verificationBox').className = 'face-verification error mt-3';
     }
 }
 
+let isProcessing = false; // Variable to prevent multiple clicks
+
 async function captureFace() {
-    document.getElementById('verificationStatus').textContent = 'Mengambil gambar...';
-    document.getElementById('verificationBox').className = 'face-verification unverified mt-3';
+    if (isProcessing) return; // Prevent multiple clicks if already processing
     
+    isProcessing = true;
+    document.getElementById('captureBtn').disabled = true;
+    document.getElementById('captureBtn').innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Memproses...';
+    document.getElementById('verificationStatus').innerHTML = `
+        <div class="text-center">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Memproses...</span>
+            </div>
+            <div class="mt-2">Mendeteksi wajah...</div>
+        </div>
+    `;
+    document.getElementById('verificationBox').className = 'face-verification unverified mt-3';
+
     try {
+        // Check if video is playing
+        if (!videoElement.srcObject) {
+            throw new Error('Kamera tidak aktif. Harap refresh halaman.');
+        }
+
         // Capture current frame
         const canvas = document.createElement('canvas');
         canvas.width = videoElement.videoWidth;
@@ -303,9 +337,9 @@ async function captureFace() {
         const ctx = canvas.getContext('2d');
         ctx.drawImage(videoElement, 0, 0);
         const imageData = canvas.toDataURL('image/jpeg');
-        
+
         // Send to server for face recognition
-        const response = await fetch('{{ url_for("attendance.capture_single") }}', {
+        const response = await fetch('{{ url_for("attendance.capture_single_face") }}', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -316,56 +350,70 @@ async function captureFace() {
 
         const result = await response.json();
 
-        if (result.status === 'match') {
-            currentMatchedStudent = result.student;
-            currentConfidence = parseFloat(result.confidence);
-            
-            // Show success
-            document.getElementById('verificationStatus').innerHTML = `
-                <div class="text-center">
-                    <h5><i class="fas fa-check-circle text-success"></i> Wajah Dikenali!</h5>
-                    <p class="mb-0"><strong>${result.student.name}</strong></p>
-                    <p class="mb-0 text-muted">${result.student.student_id}</p>
-                    <p class="mb-0">Confidence: ${result.confidence}</p>
-                    ${result.already_recorded ? 
-                        '<span class="badge bg-warning">Sudah Absen</span>' : 
-                        '<span class="badge bg-success">Belum Absen</span>'
-                    }
-                </div>
-            `;
-            document.getElementById('verificationBox').className = 'face-verification confirmed mt-3';
-            
-            // Enable confirmation button if not already recorded
-            if (!result.already_recorded) {
-                document.getElementById('confirmBtn').disabled = false;
+        if (response.ok) {
+            if (result.status === 'match') {
+                currentMatchedStudent = result.student;
+                currentConfidence = parseFloat(result.confidence);
+
+                // Show success
+                document.getElementById('verificationStatus').innerHTML = `
+                    <div class="text-center">
+                        <h5><i class="fas fa-check-circle text-success"></i> Wajah Dikenali!</h5>
+                        <p class="mb-0"><strong>${result.student.name}</strong></p>
+                        <p class="mb-0 text-muted">${result.student.student_id}</p>
+                        <p class="mb-0">Confidence: ${result.confidence}</p>
+                        ${result.already_recorded ?
+                            '<span class="badge bg-warning">Sudah Absen</span>' :
+                            '<span class="badge bg-success">Belum Absen</span>'
+                        }
+                    </div>
+                `;
+                document.getElementById('verificationBox').className = 'face-verification confirmed mt-3';
+
+                // Enable confirmation button if not already recorded
+                if (!result.already_recorded) {
+                    document.getElementById('confirmBtn').disabled = false;
+                    document.getElementById('confirmBtn').innerHTML = '<i class="fas fa-check"></i> Konfirmasi Hadir';
+                } else {
+                    document.getElementById('confirmBtn').disabled = true;
+                    document.getElementById('confirmBtn').innerHTML = '<i class="fas fa-check"></i> Sudah Absen';
+                }
+
+                // Update step indicators
+                document.getElementById('step2').className = 'step completed';
+                document.getElementById('step3').className = 'step completed';
+                document.getElementById('step4').className = 'step active';
             } else {
+                // Show error
+                let message = result.message || 'Wajah tidak dikenal';
+                document.getElementById('verificationStatus').innerHTML = `
+                    <div class="text-center">
+                        <h5><i class="fas fa-exclamation-triangle text-danger"></i> ${message}</h5>
+                        <p class="mb-0">Pastikan wajah terlihat jelas dan sesuai dengan data mahasiswa</p>
+                    </div>
+                `;
+                document.getElementById('verificationBox').className = 'face-verification error mt-3';
+
                 document.getElementById('confirmBtn').disabled = true;
+                currentMatchedStudent = null;
+                currentConfidence = 0;
+
+                // Reset step indicators
+                document.getElementById('step1').className = 'step active';
+                document.getElementById('step2').className = 'step';
+                document.getElementById('step3').className = 'step';
+                document.getElementById('step4').className = 'step';
             }
-            
-            // Update step indicators
-            document.getElementById('step2').className = 'step completed';
-            document.getElementById('step3').className = 'step completed';
-            document.getElementById('step4').className = 'step active';
         } else {
-            // Show error
-            let message = result.message || 'Wajah tidak dikenal';
+            // Handle server error
             document.getElementById('verificationStatus').innerHTML = `
                 <div class="text-center">
-                    <h5><i class="fas fa-exclamation-triangle text-danger"></i> ${message}</h5>
-                    <p class="mb-0">Coba posisi wajah lebih jelas</p>
+                    <h5><i class="fas fa-exclamation-triangle text-danger"></i> Server Error</h5>
+                    <p class="mb-0">Tidak dapat memproses permintaan. Silakan coba lagi.</p>
                 </div>
             `;
             document.getElementById('verificationBox').className = 'face-verification error mt-3';
-            
             document.getElementById('confirmBtn').disabled = true;
-            currentMatchedStudent = null;
-            currentConfidence = 0;
-            
-            // Reset step indicators
-            document.getElementById('step1').className = 'step active';
-            document.getElementById('step2').className = 'step';
-            document.getElementById('step3').className = 'step';
-            document.getElementById('step4').className = 'step';
         }
     } catch (error) {
         console.error('Error capturing face:', error);
@@ -377,14 +425,31 @@ async function captureFace() {
         `;
         document.getElementById('verificationBox').className = 'face-verification error mt-3';
         document.getElementById('confirmBtn').disabled = true;
+    } finally {
+        // Reset button state
+        isProcessing = false;
+        document.getElementById('captureBtn').disabled = false;
+        document.getElementById('captureBtn').innerHTML = '<i class="fas fa-camera"></i> Ambil Wajah';
+        
+        // Disable confirm button if no match
+        if (!currentMatchedStudent) {
+            document.getElementById('confirmBtn').disabled = true;
+            document.getElementById('confirmBtn').innerHTML = '<i class="fas fa-check"></i> Konfirmasi Hadir';
+        }
     }
 }
 
 async function confirmAttendance() {
-    if (!currentMatchedStudent) {
-        alert('Tidak ada wajah yang dikenali!');
+    if (!currentMatchedStudent || isProcessing) {
+        if (!currentMatchedStudent) {
+            alert('Tidak ada wajah yang dikenali!');
+        }
         return;
     }
+
+    isProcessing = true;
+    document.getElementById('confirmBtn').disabled = true;
+    document.getElementById('confirmBtn').innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Memproses...';
 
     try {
         // Record attendance
@@ -405,32 +470,46 @@ async function confirmAttendance() {
                 alert(result.message);
             } else {
                 alert(result.message);
-                
+
                 // Add to attendance list
                 addAttendanceRecord(currentMatchedStudent);
                 updateAttendanceBadge();
-                
-                // Reset UI
-                document.getElementById('verificationStatus').textContent = 'Wajah terkonfirmasi hadir!';
+
+                // Show success state
+                document.getElementById('verificationStatus').innerHTML = `
+                    <div class="text-center">
+                        <h5><i class="fas fa-check-circle text-success"></i> Hadir Dicatat!</h5>
+                        <p class="mb-0"><strong>${currentMatchedStudent.name}</strong></p>
+                        <p class="mb-0 text-muted">${currentMatchedStudent.student_id}</p>
+                        <span class="badge bg-success">Telah Absen</span>
+                    </div>
+                `;
                 document.getElementById('verificationBox').className = 'face-verification confirmed mt-3';
                 document.getElementById('confirmBtn').disabled = true;
-                
+                document.getElementById('confirmBtn').innerHTML = '<i class="fas fa-check"></i> Sudah Absen';
+
                 // Reset for next student
                 currentMatchedStudent = null;
                 currentConfidence = 0;
-                
-                // Reset step indicators
-                document.getElementById('step1').className = 'step active';
-                document.getElementById('step2').className = 'step';
-                document.getElementById('step3').className = 'step';
-                document.getElementById('step4').className = 'step';
             }
+
+            // Reset step indicators
+            document.getElementById('step1').className = 'step active';
+            document.getElementById('step2').className = 'step';
+            document.getElementById('step3').className = 'step';
+            document.getElementById('step4').className = 'step';
         } else {
             alert('Error: ' + (result.error || 'Gagal mencatat kehadiran'));
+            document.getElementById('confirmBtn').disabled = false;
+            document.getElementById('confirmBtn').innerHTML = '<i class="fas fa-check"></i> Konfirmasi Hadir';
         }
     } catch (error) {
         console.error('Error confirming attendance:', error);
         alert('Error: ' + error.message);
+        document.getElementById('confirmBtn').disabled = false;
+        document.getElementById('confirmBtn').innerHTML = '<i class="fas fa-check"></i> Konfirmasi Hadir';
+    } finally {
+        isProcessing = false;
     }
 }
 
